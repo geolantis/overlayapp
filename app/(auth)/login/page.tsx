@@ -74,7 +74,7 @@ export default function LoginPage() {
       <Card className="w-full border-slate-200 shadow-xl bg-white">
         <CardHeader className="space-y-2 pb-6">
           <CardTitle className="text-3xl font-bold text-slate-900 text-center">Sign in</CardTitle>
-          <CardDescription className="text-slate-600 text-center text-base">
+          <CardDescription className="text-slate-700 text-center text-base">
             Enter your email and password to access your account
           </CardDescription>
         </CardHeader>
@@ -86,7 +86,7 @@ export default function LoginPage() {
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-slate-700 font-medium">Email</Label>
+              <Label htmlFor="email" className="text-slate-900 font-semibold">Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -95,11 +95,11 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={loading}
-                className="h-11 border-slate-300 bg-white"
+                className="h-11 border-slate-300 bg-white placeholder:text-slate-400 text-slate-900"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-slate-700 font-medium">Password</Label>
+              <Label htmlFor="password" className="text-slate-900 font-semibold">Password</Label>
               <Input
                 id="password"
                 type="password"
@@ -108,7 +108,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 disabled={loading}
-                className="h-11 border-slate-300 bg-white"
+                className="h-11 border-slate-300 bg-white placeholder:text-slate-400 text-slate-900"
               />
             </div>
             <div className="flex items-center justify-end">
@@ -134,7 +134,7 @@ export default function LoginPage() {
                 <span className="w-full border-t border-slate-300" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-3 text-slate-500 font-medium">
+                <span className="bg-white px-3 text-slate-600 font-medium">
                   Or continue with
                 </span>
               </div>
@@ -182,7 +182,7 @@ export default function LoginPage() {
               </Button>
             </div>
 
-            <div className="text-center text-sm text-slate-600 pt-2">
+            <div className="text-center text-sm text-slate-700 pt-2">
               Don't have an account?{" "}
               <Link href="/signup" className="text-blue-600 hover:text-blue-700 hover:underline font-semibold">
                 Sign up

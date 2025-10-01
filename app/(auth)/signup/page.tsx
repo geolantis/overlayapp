@@ -77,16 +77,16 @@ export default function SignupPage() {
 
   if (success) {
     return (
-      <Card>
+      <Card className="w-full max-w-md border-slate-200 shadow-lg">
         <CardHeader>
-          <CardTitle>Check your email</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-2xl font-bold text-slate-900">Check your email</CardTitle>
+          <CardDescription className="text-slate-700">
             We sent you a confirmation link. Please check your email to verify your account.
           </CardDescription>
         </CardHeader>
         <CardFooter>
           <Link href="/login" className="w-full">
-            <Button className="w-full">Back to login</Button>
+            <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">Back to login</Button>
           </Link>
         </CardFooter>
       </Card>
@@ -97,7 +97,7 @@ export default function SignupPage() {
     <Card className="w-full max-w-md border-slate-200 shadow-lg">
       <CardHeader className="space-y-1">
         <CardTitle className="text-2xl font-bold text-slate-900">Create an account</CardTitle>
-        <CardDescription className="text-slate-600">
+        <CardDescription className="text-slate-700">
           Enter your information to create your account
         </CardDescription>
       </CardHeader>
@@ -109,7 +109,7 @@ export default function SignupPage() {
             </div>
           )}
           <div className="space-y-2">
-            <Label htmlFor="fullName">Full Name</Label>
+            <Label htmlFor="fullName" className="text-slate-900 font-semibold">Full Name</Label>
             <Input
               id="fullName"
               type="text"
@@ -118,10 +118,11 @@ export default function SignupPage() {
               onChange={(e) => setFullName(e.target.value)}
               required
               disabled={loading}
+              className="placeholder:text-slate-400 text-slate-900"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email" className="text-slate-900 font-semibold">Email</Label>
             <Input
               id="email"
               type="email"
@@ -130,10 +131,11 @@ export default function SignupPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               disabled={loading}
+              className="placeholder:text-slate-400 text-slate-900"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password" className="text-slate-900 font-semibold">Password</Label>
             <Input
               id="password"
               type="password"
@@ -143,6 +145,7 @@ export default function SignupPage() {
               required
               minLength={8}
               disabled={loading}
+              className="placeholder:text-slate-400 text-slate-900"
             />
           </div>
         </CardContent>
@@ -152,10 +155,10 @@ export default function SignupPage() {
           </Button>
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
+              <span className="w-full border-t border-slate-300" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">
+              <span className="bg-white px-2 text-slate-600 font-medium">
                 Or continue with
               </span>
             </div>
@@ -198,9 +201,9 @@ export default function SignupPage() {
               </svg>
             </Button>
           </div>
-          <div className="text-center text-sm text-slate-600">
+          <div className="text-center text-sm text-slate-700">
             Already have an account?{" "}
-            <Link href="/login" className="text-blue-600 hover:underline font-medium">
+            <Link href="/login" className="text-blue-600 hover:underline font-semibold">
               Sign in
             </Link>
           </div>

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Confirm Email Change - OverlayApp</title>
+  <style>
+    /* Reset styles */
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+
+    /* Body styles */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f5f5f5;
+      line-height: 1.6;
+    }
+
+    /* Container */
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background-color: #ffffff;
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      padding: 40px 30px;
+      text-align: center;
+    }
+
+    .logo {
+      color: #ffffff;
+      font-size: 32px;
+      font-weight: bold;
+      text-decoration: none;
+      letter-spacing: -0.5px;
+    }
+
+    /* Content */
+    .content {
+      padding: 40px 30px;
+      color: #333333;
+    }
+
+    h1 {
+      color: #333333;
+      font-size: 24px;
+      font-weight: 600;
+      margin: 0 0 20px 0;
+      line-height: 1.3;
+    }
+
+    p {
+      margin: 0 0 16px 0;
+      color: #666666;
+      font-size: 16px;
+    }
+
+    /* Button */
+    .button-container {
+      text-align: center;
+      margin: 30px 0;
+    }
+
+    .button {
+      display: inline-block;
+      padding: 16px 32px;
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      color: #ffffff !important;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 16px;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+      transition: all 0.3s ease;
+    }
+
+    .button:hover {
+      box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+      transform: translateY(-2px);
+    }
+
+    /* Code */
+    .code-container {
+      background-color: #f8f9fa;
+      border: 2px dashed #e0e0e0;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 30px 0;
+      text-align: center;
+    }
+
+    .code-label {
+      font-size: 14px;
+      color: #666666;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .code {
+      font-family: 'Courier New', monospace;
+      font-size: 32px;
+      font-weight: bold;
+      letter-spacing: 8px;
+      color: #2563eb;
+      margin: 0;
+    }
+
+    /* Info box */
+    .info-box {
+      background-color: #e3f2fd;
+      border-left: 4px solid #2196f3;
+      padding: 16px 20px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+
+    .info-box p {
+      margin: 0;
+      font-size: 14px;
+      color: #0d47a1;
+    }
+
+    /* Footer */
+    .footer {
+      background-color: #f8f9fa;
+      padding: 30px;
+      text-align: center;
+      border-top: 1px solid #e0e0e0;
+    }
+
+    .footer p {
+      font-size: 14px;
+      color: #999999;
+      margin: 8px 0;
+    }
+
+    .footer a {
+      color: #2563eb;
+      text-decoration: none;
+    }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background-color: #e0e0e0;
+      margin: 30px 0;
+    }
+
+    /* Security notice */
+    .security-notice {
+      background-color: #fce4ec;
+      border: 1px solid #f48fb1;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin: 20px 0;
+    }
+
+    .security-notice p {
+      margin: 0;
+      font-size: 13px;
+      color: #880e4f;
+    }
+
+    /* Highlight box */
+    .highlight-box {
+      background-color: #f0f7ff;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+      text-align: center;
+    }
+
+    .highlight-box p {
+      margin: 0;
+      color: #1976d2;
+      font-weight: 600;
+    }
+
+    /* Responsive */
+    @media only screen and (max-width: 600px) {
+      .content {
+        padding: 30px 20px !important;
+      }
+
+      h1 {
+        font-size: 22px !important;
+      }
+
+      .code {
+        font-size: 24px !important;
+        letter-spacing: 4px !important;
+      }
+
+      .button {
+        padding: 14px 28px !important;
+        font-size: 15px !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+    <tr>
+      <td style="padding: 20px 0;">
+        <table class="container" role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+
+          <!-- Header -->
+          <tr>
+            <td class="header">
+              <a href="{{ .SiteURL }}" class="logo" style="color: #ffffff;">OverlayApp</a>
+            </td>
+          </tr>
+
+          <!-- Content -->
+          <tr>
+            <td class="content">
+              <h1>Confirm Your New Email Address ✉️</h1>
+
+              <p>Hi there,</p>
+
+              <p>You recently requested to change the email address associated with your OverlayApp account. To complete this change, please confirm your new email address.</p>
+
+              <!-- New Email Highlight -->
+              <div class="highlight-box">
+                <p style="font-size: 14px; color: #666; margin-bottom: 8px;">NEW EMAIL ADDRESS</p>
+                <p style="font-size: 18px;">{{ .Email }}</p>
+              </div>
+
+              <!-- Confirmation Button -->
+              <div class="button-container">
+                <a href="{{ .ConfirmationURL }}" class="button">Confirm Email Change</a>
+              </div>
+
+              <!-- Alternative: Code -->
+              <div class="code-container">
+                <div class="code-label">Or enter this code in the app:</div>
+                <p class="code">{{ .Token }}</p>
+              </div>
+
+              <!-- Info Box -->
+              <div class="info-box">
+                <p><strong>⏰ This link expires in 24 hours</strong></p>
+                <p>For security reasons, email change confirmations are only valid for 24 hours. If it expires, you can request a new change from your account settings.</p>
+              </div>
+
+              <!-- Security Notice -->
+              <div class="security-notice">
+                <p><strong>🚨 Didn't request this change?</strong></p>
+                <p>If you didn't request to change your email address, someone may have unauthorized access to your account. Please:</p>
+                <ul style="margin: 8px 0 0 20px; padding: 0;">
+                  <li>Ignore this email (no changes will be made)</li>
+                  <li>Change your password immediately</li>
+                  <li>Enable two-factor authentication</li>
+                  <li>Contact our security team: security@overlayapp.com</li>
+                </ul>
+              </div>
+
+              <div class="divider"></div>
+
+              <p><strong>What happens next?</strong></p>
+              <ul style="color: #666666; font-size: 16px; line-height: 1.8; margin: 16px 0;">
+                <li>Click the confirmation button above or enter the code</li>
+                <li>Your email will be updated to {{ .Email }}</li>
+                <li>You'll use this new email for all future logins</li>
+                <li>All account notifications will be sent to this address</li>
+                <li>Your old email will no longer work for login</li>
+              </ul>
+
+              <div class="divider"></div>
+
+              <p style="font-size: 14px;">If you're having trouble with this change or need to revert it, contact our support team at <a href="mailto:support@overlayapp.com" style="color: #2563eb;">support@overlayapp.com</a></p>
+
+              <p style="margin-top: 30px;">
+                Best regards,<br>
+                <strong>The OverlayApp Team</strong>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td class="footer">
+              <p style="margin-bottom: 16px;">
+                <a href="{{ .SiteURL }}">Visit OverlayApp</a> •
+                <a href="{{ .SiteURL }}/help">Help Center</a> •
+                <a href="{{ .SiteURL }}/security">Security</a>
+              </p>
+
+              <p>OverlayApp - Your Map-Based Document Management Solution</p>
+
+              <p style="font-size: 12px; color: #aaaaaa; margin-top: 20px;">
+                This is an automated message, please do not reply to this email.<br>
+                For support, contact us at support@overlayapp.com
+              </p>
+
+              <p style="font-size: 11px; color: #cccccc; margin-top: 16px;">
+                This email was sent to {{ .Email }} because you requested an email change<br>
+                for your OverlayApp account.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

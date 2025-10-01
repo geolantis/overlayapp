@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>You're Invited to OverlayApp</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f8fafc;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 48px 40px; text-align: center;">
+              <h1 style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0; letter-spacing: -0.5px;">OverlayApp</h1>
+              <p style="color: rgba(255, 255, 255, 0.9); font-size: 16px; margin: 12px 0 0 0;">Professional PDF Overlay Management</p>
+            </td>
+          </tr>
+
+          <!-- Content -->
+          <tr>
+            <td style="padding: 48px 40px;">
+              <h2 style="color: #1e293b; font-size: 26px; margin: 0 0 16px 0; font-weight: 700;">You've been invited! 🎉</h2>
+
+              <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+                Good news! You've been invited to join an organization on OverlayApp, where you can collaborate on georeferencing PDFs and creating beautiful map overlays.
+              </p>
+
+              <!-- Invitation Details -->
+              <div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); padding: 24px; margin: 32px 0; border-radius: 12px; border: 1px solid #2563eb;">
+                <table width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="padding: 8px 0;">
+                      <p style="color: #64748b; font-size: 13px; margin: 0;">Invited by</p>
+                      <p style="color: #1e293b; font-size: 16px; margin: 4px 0 0 0; font-weight: 600;">{{ .InviterName }}</p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0;">
+                      <p style="color: #64748b; font-size: 13px; margin: 0;">Organization</p>
+                      <p style="color: #1e293b; font-size: 16px; margin: 4px 0 0 0; font-weight: 600;">{{ .OrganizationName }}</p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0;">
+                      <p style="color: #64748b; font-size: 13px; margin: 0;">Role</p>
+                      <p style="color: #1e293b; font-size: 16px; margin: 4px 0 0 0; font-weight: 600;">{{ .Role }}</p>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+
+              <!-- Button -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 32px 0;">
+                <tr>
+                  <td align="center">
+                    <a href="{{ .ConfirmationURL }}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #ffffff !important; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
+                      Accept Invitation
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- What You'll Get Access To -->
+              <div style="background-color: #f8fafc; padding: 24px; margin: 32px 0; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <p style="color: #1e293b; font-size: 15px; margin: 0 0 16px 0; font-weight: 600;">
+                  🚀 What you'll get access to:
+                </p>
+                <ul style="color: #64748b; font-size: 14px; margin: 0; padding-left: 20px; line-height: 2;">
+                  <li>Upload and georeference PDFs with precision</li>
+                  <li>Create beautiful map overlays</li>
+                  <li>Collaborate in real-time with your team</li>
+                  <li>Share and manage documents securely</li>
+                  <li>Access powerful georeferencing tools</li>
+                </ul>
+              </div>
+
+              <!-- Expiration Notice -->
+              <div style="margin: 32px 0; padding: 20px 24px; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-left: 4px solid #f59e0b; border-radius: 8px;">
+                <p style="color: #92400e; font-size: 14px; margin: 0 0 8px 0; font-weight: 600;">
+                  ⏰ Time-Sensitive Invitation
+                </p>
+                <p style="color: #92400e; font-size: 14px; margin: 0; line-height: 1.6;">
+                  This invitation expires in <strong>7 days</strong>. Accept it now to start collaborating!
+                </p>
+              </div>
+
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 32px 0;">
+
+              <p style="color: #94a3b8; font-size: 13px; line-height: 1.6; margin: 0;">
+                If the button doesn't work, copy and paste this link:<br>
+                <a href="{{ .ConfirmationURL }}" style="color: #2563eb; word-break: break-all; text-decoration: none;">{{ .ConfirmationURL }}</a>
+              </p>
+
+              <p style="color: #94a3b8; font-size: 13px; line-height: 1.6; margin: 24px 0 0 0;">
+                <strong>Not interested?</strong> Simply ignore this email and the invitation will expire automatically.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f8fafc; padding: 32px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
+              <p style="color: #64748b; font-size: 14px; margin: 0 0 12px 0;">
+                <strong>OverlayApp</strong> - Georeference your PDFs with precision
+              </p>
+              <p style="color: #94a3b8; font-size: 13px; margin: 0 0 16px 0;">
+                &copy; 2025 OverlayApp. All rights reserved.
+              </p>
+              <p style="color: #94a3b8; font-size: 13px; margin: 0;">
+                <a href="{{ .SiteURL }}" style="color: #2563eb; text-decoration: none; margin: 0 12px;">Home</a>
+                <a href="{{ .SiteURL }}/features" style="color: #2563eb; text-decoration: none; margin: 0 12px;">Features</a>
+                <a href="{{ .SiteURL }}/support" style="color: #2563eb; text-decoration: none; margin: 0 12px;">Support</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -1,0 +1,1422 @@
+# PDF Overlay Management SaaS - System Architecture
+
+## Executive Summary
+
+This document defines the comprehensive multi-tenant SaaS architecture for a PDF overlay management platform with georeferencing capabilities, designed for global deployment across EU, US, Canada, and Australia regions.
+
+**Current Stack:**
+- Backend: FastAPI + Python
+- Database: Railway PostgreSQL with PostGIS
+- Frontend: React + Vite + MapLibre GL
+- Storage: Supabase Storage (evaluation pending)
+- Deployment: Railway (Backend), Vercel (Frontend)
+
+---
+
+## 1. Multi-Tenancy Strategy
+
+### 1.1 Tenant Isolation Model: **Row-Level Security (RLS) with Account-Based Partitioning**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│           MULTI-TENANT ARCHITECTURE                      │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
+│  │  Tenant A    │  │  Tenant B    │  │  Tenant C    │  │
+│  │  (EU)        │  │  (US)        │  │  (AUS)       │  │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  │
+│         │                  │                  │          │
+│         └──────────────────┴──────────────────┘          │
+│                            ↓                              │
+│         ┌──────────────────────────────────┐             │
+│         │   API Gateway with JWT Auth      │             │
+│         │   (Tenant ID in JWT Claims)      │             │
+│         └──────────────────┬───────────────┘             │
+│                            ↓                              │
+│         ┌──────────────────────────────────┐             │
+│         │  FastAPI Application Layer       │             │
+│         │  (Tenant Context Middleware)     │             │
+│         └──────────────────┬───────────────┘             │
+│                            ↓                              │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │      PostgreSQL + PostGIS (Shared Database)     │    │
+│  │                                                  │    │
+│  │  ┌────────────────────────────────────────┐    │    │
+│  │  │  Row-Level Security (RLS) Policies     │    │    │
+│  │  │  WHERE geolantis_account_id = :tenant  │    │    │
+│  │  └────────────────────────────────────────┘    │    │
+│  │                                                  │    │
+│  │  Tables:                                        │    │
+│  │  • geolantis_accounts (tenant configs)         │    │
+│  │  • account_users (user → tenant mapping)       │    │
+│  │  • image_overlays (RLS on account_id)          │    │
+│  │  • image_tiles (cascade from overlays)         │    │
+│  └─────────────────────────────────────────────────┘    │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 1.2 Implementation Strategy
+
+**Database-Level Isolation:**
+```sql
+-- Already implemented in RAILWAY_POSTGRES_PDF_OVERLAY_SCHEMA.sql
+
+-- 1. Tenant table with unique constraints
+CREATE TABLE geolantis_accounts (
+    id UUID PRIMARY KEY,
+    account_id VARCHAR(255) NOT NULL,
+    server_endpoint VARCHAR(255) NOT NULL,
+    UNIQUE(account_id, server_endpoint)
+);
+
+-- 2. All tables have geolantis_account_id foreign key
+CREATE TABLE image_overlays (
+    id UUID PRIMARY KEY,
+    geolantis_account_id UUID NOT NULL REFERENCES geolantis_accounts(id),
+    -- RLS enforces: WHERE geolantis_account_id = current_tenant_id()
+);
+
+-- 3. RLS policies (to be enhanced)
+ALTER TABLE image_overlays ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON image_overlays
+    FOR ALL TO authenticated_user
+    USING (geolantis_account_id = current_setting('app.current_tenant_id')::UUID);
+```
+
+**Application-Level Enforcement:**
+```python
+# FastAPI middleware for tenant context
+from fastapi import Request, HTTPException
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class TenantContextMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Extract tenant from JWT claims
+        token = request.headers.get("Authorization")
+        tenant_id = extract_tenant_from_jwt(token)
+
+        if not tenant_id:
+            raise HTTPException(status_code=401, detail="No tenant context")
+
+        # Set tenant context for database session
+        request.state.tenant_id = tenant_id
+
+        # Set PostgreSQL session variable for RLS
+        await set_db_context(tenant_id)
+
+        response = await call_next(request)
+        return response
+
+async def set_db_context(tenant_id: str):
+    """Set PostgreSQL session variable for RLS policies"""
+    query = f"SET app.current_tenant_id = '{tenant_id}'"
+    await database.execute(query)
+```
+
+### 1.3 Cross-Tenant Data Prevention
+
+**Security Measures:**
+1. **Database RLS**: All queries automatically filtered by tenant_id
+2. **API Gateway Validation**: JWT must contain valid tenant_id
+3. **Storage Bucket Isolation**: S3/Supabase paths include tenant prefix
+4. **Audit Logging**: All cross-tenant access attempts logged
+5. **Rate Limiting**: Per-tenant API limits
+
+**Storage Isolation Pattern:**
+```
+storage/
+├── tenant-{uuid}/
+│   ├── pdf-uploads/
+│   │   └── {file_id}.pdf
+│   ├── overlay-images/
+│   │   └── {overlay_id}.png
+│   └── tiles/
+│       └── {z}/{x}/{y}.png
+```
+
+---
+
+## 2. Scalability Architecture
+
+### 2.1 Regional Deployment Strategy
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    GLOBAL DEPLOYMENT TOPOLOGY                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │   EU Region  │  │  US Region   │  │ Canada/APAC  │          │
+│  │              │  │              │  │              │          │
+│  │  Frontend:   │  │  Frontend:   │  │  Frontend:   │          │
+│  │  Vercel EU   │  │  Vercel US   │  │  Vercel APAC │          │
+│  │  (CDN Edge)  │  │  (CDN Edge)  │  │  (CDN Edge)  │          │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘          │
+│         │                  │                  │                  │
+│         └──────────────────┴──────────────────┘                  │
+│                            ↓                                      │
+│              ┌─────────────────────────────┐                     │
+│              │   Global API Gateway         │                     │
+│              │   (CloudFlare / AWS Gateway) │                     │
+│              │   - Geo-routing              │                     │
+│              │   - DDoS protection          │                     │
+│              │   - Rate limiting            │                     │
+│              └─────────────┬───────────────┘                     │
+│                            ↓                                      │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │         Regional Backend Clusters (FastAPI)              │    │
+│  │                                                          │    │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │    │
+│  │  │  EU Cluster  │  │  US Cluster  │  │ APAC Cluster │  │    │
+│  │  │  Railway EU  │  │  Railway US  │  │ Railway APAC │  │    │
+│  │  │  3 instances │  │  3 instances │  │  2 instances │  │    │
+│  │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  │    │
+│  └─────────┼──────────────────┼──────────────────┼──────────┘    │
+│            │                  │                  │                │
+│            ↓                  ↓                  ↓                │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │            Regional Database Replicas                    │    │
+│  │                                                          │    │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │    │
+│  │  │   EU Master  │  │  US Replica  │  │ APAC Replica │  │    │
+│  │  │  PostgreSQL  │←→│  PostgreSQL  │←→│  PostgreSQL  │  │    │
+│  │  │  + PostGIS   │  │  + PostGIS   │  │  + PostGIS   │  │    │
+│  │  │  (Primary)   │  │  (Read Rep)  │  │  (Read Rep)  │  │    │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘  │    │
+│  │                                                          │    │
+│  │  Multi-region replication with 50-200ms latency         │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │               Regional Storage (Supabase/S3)             │    │
+│  │                                                          │    │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │    │
+│  │  │  EU Bucket   │  │  US Bucket   │  │ APAC Bucket  │  │    │
+│  │  │  S3/Supabase │  │  S3/Supabase │  │  S3/Supabase │  │    │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘  │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 2.2 Database Sharding Strategy
+
+**Hybrid Approach: Functional + Horizontal Sharding**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              DATABASE SHARDING ARCHITECTURE              │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  Shard Selection Logic:                                 │
+│  • Small tenants (< 1000 overlays): Shared shard       │
+│  • Large tenants (> 1000 overlays): Dedicated shard    │
+│  • Geo-distributed: Regional shard preference          │
+│                                                          │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │          Core Metadata Shard (Global)           │   │
+│  │  • geolantis_accounts                           │   │
+│  │  • account_users                                │   │
+│  │  • authentication tokens                        │   │
+│  │  • tenant → shard routing table                 │   │
+│  └─────────────────────────────────────────────────┘   │
+│                          ↓                              │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │         Tenant Data Shards (Regional)           │   │
+│  │                                                  │   │
+│  │  Shard 1 (EU):                                  │   │
+│  │  • image_overlays (tenant_ids: A, B, C...)     │   │
+│  │  • image_tiles                                  │   │
+│  │  • overlay_collections                          │   │
+│  │                                                  │   │
+│  │  Shard 2 (US):                                  │   │
+│  │  • image_overlays (tenant_ids: X, Y, Z...)     │   │
+│  │  • image_tiles                                  │   │
+│  │  • overlay_collections                          │   │
+│  │                                                  │   │
+│  │  Shard 3 (APAC):                                │   │
+│  │  • image_overlays (tenant_ids: P, Q, R...)     │   │
+│  │  • image_tiles                                  │   │
+│  │  • overlay_collections                          │   │
+│  └─────────────────────────────────────────────────┘   │
+│                                                          │
+│  Sharding Key: geolantis_account_id                     │
+│  Routing: Consistent hashing with regional affinity     │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Implementation:**
+```python
+# Shard routing service
+class ShardRouter:
+    def __init__(self):
+        self.shard_map = {}  # tenant_id → shard_id
+        self.shard_connections = {}  # shard_id → connection pool
+
+    def get_shard_for_tenant(self, tenant_id: str) -> str:
+        """Route tenant to appropriate shard"""
+        # Check routing table in core metadata DB
+        if tenant_id in self.shard_map:
+            return self.shard_map[tenant_id]
+
+        # Determine shard based on:
+        # 1. Tenant size (small → shared, large → dedicated)
+        # 2. Geographic region
+        # 3. Shard capacity
+        shard_id = self._calculate_optimal_shard(tenant_id)
+        self.shard_map[tenant_id] = shard_id
+        return shard_id
+
+    async def execute_query(self, tenant_id: str, query: str):
+        """Execute query on correct shard"""
+        shard_id = self.get_shard_for_tenant(tenant_id)
+        connection = self.shard_connections[shard_id]
+        return await connection.execute(query)
+```
+
+### 2.3 CDN and Edge Caching Strategy
+
+**Three-Tier Caching Architecture:**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                 CACHING ARCHITECTURE                     │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  Tier 1: Edge CDN (CloudFlare/CloudFront)              │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  Static Assets:                                 │    │
+│  │  • Frontend bundles (React/Vite)               │    │
+│  │  • MapLibre GL styles/sprites                  │    │
+│  │  • PDF tiles (immutable, 30-day cache)         │    │
+│  │  • Overlay images (immutable, 30-day cache)    │    │
+│  │                                                 │    │
+│  │  Cache-Control: public, max-age=2592000        │    │
+│  │  Cache Hit Rate Target: >95%                   │    │
+│  └────────────────────────────────────────────────┘    │
+│                          ↓                              │
+│  Tier 2: Redis (Application Cache)                     │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  Hot Data:                                      │    │
+│  │  • Tenant metadata (5-minute TTL)              │    │
+│  │  • Active session data (30-minute TTL)         │    │
+│  │  • PDF processing results (1-hour TTL)         │    │
+│  │  • Spatial query results (5-minute TTL)        │    │
+│  │  • Transformation matrices (until updated)     │    │
+│  │                                                 │    │
+│  │  Regional Clusters: EU, US, APAC               │    │
+│  │  Replication: Master-Replica with 10ms lag     │    │
+│  └────────────────────────────────────────────────┘    │
+│                          ↓                              │
+│  Tier 3: Database Query Cache                          │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  PostgreSQL:                                    │    │
+│  │  • Materialized views for analytics            │    │
+│  │  • Prepared statement cache                    │    │
+│  │  • PostGIS spatial index cache                 │    │
+│  │                                                 │    │
+│  │  Refresh Strategy: Incremental every 5 minutes │    │
+│  └────────────────────────────────────────────────┘    │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Cache Invalidation Strategy:**
+```python
+# Intelligent cache invalidation
+class CacheManager:
+    def __init__(self):
+        self.redis_client = Redis()
+        self.cdn_client = CloudFlareAPI()
+
+    async def invalidate_overlay(self, overlay_id: str):
+        """Invalidate all caches for an overlay"""
+        # 1. Redis application cache
+        keys_to_delete = [
+            f"overlay:{overlay_id}:*",
+            f"tenant:*:overlays",  # List caches
+            f"spatial:bounds:*",   # Spatial query caches
+        ]
+        await self.redis_client.delete_pattern(keys_to_delete)
+
+        # 2. CDN edge cache (for tile updates)
+        tile_urls = await self.get_tile_urls(overlay_id)
+        await self.cdn_client.purge_urls(tile_urls)
+
+        # 3. Materialized view refresh
+        await self.database.refresh_materialized_view("overlay_summary")
+```
+
+### 2.4 Load Balancing
+
+**Multi-Level Load Balancing:**
+
+```
+Global DNS → CloudFlare (Geo-routing) → Regional LB → App Instances
+
+┌─────────────────────────────────────────────────────────┐
+│                 LOAD BALANCING LAYERS                    │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  Layer 1: DNS-based Geo Load Balancing                 │
+│  • Route EU → eu.api.overlayapp.com                    │
+│  • Route US → us.api.overlayapp.com                    │
+│  • Route APAC → apac.api.overlayapp.com                │
+│  • Failover to nearest region (latency-based)          │
+│                                                          │
+│  Layer 2: Application Load Balancer (ALB)              │
+│  • Health checks every 10 seconds                      │
+│  • Auto-scaling based on:                              │
+│    - CPU utilization (target: 70%)                     │
+│    - Request rate (target: 1000 req/s per instance)   │
+│    - Queue depth (target: < 100 messages)             │
+│  • Session stickiness: IP hash for WebSocket          │
+│                                                          │
+│  Layer 3: Service Mesh (Optional - Future)             │
+│  • Istio/Linkerd for microservices                     │
+│  • Circuit breaker for failing services                │
+│  • Retry logic with exponential backoff                │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. Technology Stack Evaluation & Recommendations
+
+### 3.1 Backend Framework: **FastAPI (Keep Current)**
+
+**Justification:**
+- ✅ **Current Implementation**: Already proven in pdf_import_api.py
+- ✅ **Performance**: Async/await support, 3-5x faster than Flask
+- ✅ **Type Safety**: Pydantic models for validation
+- ✅ **OpenAPI**: Auto-generated API documentation
+- ✅ **WebSocket**: Native support for real-time features
+- ✅ **Python Ecosystem**: Access to GDAL, OpenCV, NumPy for geospatial
+
+**Alternative Considered:** Node.js/Express
+- ❌ Weaker geospatial library support
+- ❌ Requires rewrite of existing processing algorithms
+- ❌ Less mature PostGIS integration
+
+**Recommendation:** **Keep FastAPI**, enhance with:
+- Dependency injection for better testing
+- Background task queue (Celery/arq)
+- Structured logging with correlation IDs
+
+### 3.2 Database: **PostgreSQL + PostGIS (Keep Current with Enhancements)**
+
+**Justification:**
+- ✅ **Spatial Support**: PostGIS for georeferencing (already in schema)
+- ✅ **JSON Support**: JSONB for flexible metadata storage
+- ✅ **RLS**: Native row-level security for multi-tenancy
+- ✅ **Performance**: Mature optimizer, spatial indexing (GIST)
+- ✅ **Extensions**: UUID, PL/Python for custom functions
+- ✅ **Replication**: Streaming replication for read replicas
+
+**Alternative Considered:** MongoDB
+- ❌ No PostGIS equivalent (limited spatial queries)
+- ❌ Weaker ACID guarantees
+- ❌ RLS requires application-level enforcement
+
+**Supabase Evaluation for Auth/RLS:**
+- ✅ **Pros**: Built-in JWT auth, managed RLS policies, real-time subscriptions
+- ✅ **Pros**: Generous free tier, auto-scaling
+- ❌ **Cons**: Vendor lock-in, less control over database tuning
+- ❌ **Cons**: Regional availability limited vs Railway
+
+**Recommendation:**
+- **Hybrid Approach**:
+  - Keep Railway PostgreSQL for core data (more control)
+  - Use Supabase for auth + real-time features
+  - Sync tenant data between systems via background job
+
+### 3.3 Storage: **Supabase Storage vs S3**
+
+**Comparison Matrix:**
+
+| Feature | Supabase Storage | AWS S3 + CloudFront | **Recommendation** |
+|---------|------------------|---------------------|-------------------|
+| **Cost (per GB/month)** | $0.021 (first 1GB free) | $0.023 + $0.085 (transfer) | Supabase cheaper |
+| **Global CDN** | Built-in (30+ edges) | CloudFront (225+ edges) | S3 better coverage |
+| **Upload Speed** | 50-100 MB/s | 100-500 MB/s (multipart) | S3 faster |
+| **Integration** | Native SDK, presigned URLs | Boto3, presigned URLs | Tied |
+| **RLS Integration** | Native (policy-based) | Application-level | Supabase easier |
+| **Regional Replication** | Limited (EU, US) | Full multi-region | S3 more flexible |
+| **Max File Size** | 50GB per file | 5TB per file | S3 wins |
+| **Bandwidth Included** | 200GB free | Pay per GB | Supabase better for small |
+
+**Decision Matrix for PDF Overlay Use Case:**
+
+```
+Storage Requirements:
+• PDF files: 1-50 MB average, 10-100 MB peak
+• Overlay images: 5-20 MB (high-res PNG)
+• Tiles: 10-50 KB per tile, 100K-1M tiles per overlay
+• Monthly storage: 50-500 GB (small SaaS), 1-10 TB (enterprise)
+• Transfer: 500 GB - 5 TB/month
+```
+
+**Recommendation: **Hybrid Approach****
+
+```python
+# Storage routing strategy
+class StorageRouter:
+    def get_storage_backend(self, file_type: str, size_mb: float):
+        if file_type == "pdf_upload":
+            # Use Supabase for uploads (better RLS, presigned URLs)
+            return SupabaseStorage()
+
+        elif file_type == "overlay_image" and size_mb < 20:
+            # Use Supabase for small-medium overlays
+            return SupabaseStorage()
+
+        elif file_type == "overlay_image" and size_mb >= 20:
+            # Use S3 for large overlays (better performance)
+            return S3Storage()
+
+        elif file_type == "tiles":
+            # Use S3 + CloudFront for tiles (better CDN)
+            return S3TileStorage()
+
+        else:
+            # Default to Supabase
+            return SupabaseStorage()
+```
+
+**Final Storage Architecture:**
+- **Supabase Storage**: PDF uploads, user-uploaded assets, small overlays
+- **S3 + CloudFront**: Large overlay images, tile caches, bulk exports
+- **Future Migration**: Move to pure S3 when storage > 1TB
+
+### 3.4 Caching: **Upstash Redis (Recommended)**
+
+**Justification:**
+- ✅ **Serverless**: Pay-per-request, auto-scaling
+- ✅ **Global Replication**: Edge caching in 10+ regions
+- ✅ **REST API**: Works with serverless functions
+- ✅ **Redis Compatible**: Standard commands, existing libraries
+- ✅ **Cost**: Free tier (10K requests/day), $0.2/100K after
+
+**Alternative Considered:** Self-hosted Redis
+- ❌ Requires infrastructure management
+- ❌ No built-in global replication
+- ✅ Lower cost at scale (> 1M req/day)
+
+**Implementation:**
+```python
+from upstash_redis import Redis
+
+class CacheService:
+    def __init__(self):
+        self.redis = Redis(
+            url=os.getenv("UPSTASH_REDIS_URL"),
+            token=os.getenv("UPSTASH_REDIS_TOKEN")
+        )
+
+    async def get_overlay_metadata(self, overlay_id: str, tenant_id: str):
+        """Get cached overlay with tenant isolation"""
+        cache_key = f"tenant:{tenant_id}:overlay:{overlay_id}"
+
+        # Try cache first
+        cached = await self.redis.get(cache_key)
+        if cached:
+            return json.loads(cached)
+
+        # Cache miss - fetch from DB
+        overlay = await db.get_overlay(overlay_id, tenant_id)
+
+        # Store with 5-minute TTL
+        await self.redis.setex(
+            cache_key,
+            300,  # 5 minutes
+            json.dumps(overlay)
+        )
+
+        return overlay
+```
+
+### 3.5 Real-time: **Supabase Realtime vs WebSockets**
+
+**Evaluation:**
+
+| Feature | Supabase Realtime | FastAPI WebSocket | **Winner** |
+|---------|-------------------|-------------------|-----------|
+| **Setup Complexity** | Low (built-in) | Medium (need broker) | Supabase |
+| **Scalability** | Auto-scaling | Manual (Redis Pub/Sub) | Supabase |
+| **Database Integration** | Native (PostgreSQL triggers) | Manual webhooks | Supabase |
+| **Multi-tenant** | RLS policies | Application-level | Supabase |
+| **Custom Logic** | Limited (DB functions) | Full control | WebSocket |
+| **Cost** | Included in Supabase | Server resources | Supabase |
+
+**Use Cases:**
+1. **Supabase Realtime**:
+   - Overlay processing status updates
+   - Collaborative georeferencing (multi-user)
+   - Real-time analytics dashboards
+
+2. **FastAPI WebSocket**:
+   - PDF upload progress (large files)
+   - Tile generation streaming
+   - Custom real-time algorithms
+
+**Recommendation: **Hybrid Approach****
+- Use Supabase Realtime for 80% of use cases (simpler)
+- Keep FastAPI WebSocket for custom streaming (e.g., live tile generation)
+
+---
+
+## 4. Service Architecture
+
+### 4.1 Microservices vs Monolithic
+
+**Decision: Modular Monolith with Service Boundaries**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│            MODULAR MONOLITH ARCHITECTURE                 │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  Single FastAPI Application with Domain Modules:        │
+│                                                          │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │  API Layer (FastAPI Routers)                    │   │
+│  │  • /api/auth         (authentication)           │   │
+│  │  • /api/pdf          (pdf_import_api.py)        │   │
+│  │  • /api/overlays     (pdf_overlay_api.py)       │   │
+│  │  • /api/tiles        (tile serving)             │   │
+│  │  • /api/tenants      (tenant management)        │   │
+│  │  • /api/billing      (usage tracking)           │   │
+│  └─────────────────────────────────────────────────┘   │
+│                          ↓                              │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │  Domain Services (Business Logic)               │   │
+│  │                                                  │   │
+│  │  • PDFProcessor (pdf_processor.py)              │   │
+│  │  • GeoreferencingService (coordinate transform) │   │
+│  │  • TileGenerationService (image → tiles)        │   │
+│  │  • TenantService (isolation, quotas)            │   │
+│  │  • StorageService (multi-backend routing)       │   │
+│  └─────────────────────────────────────────────────┘   │
+│                          ↓                              │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │  Data Access Layer (Repositories)                │   │
+│  │  • OverlayRepository                             │   │
+│  │  • TenantRepository                              │   │
+│  │  • TileRepository                                │   │
+│  │  (All enforce RLS through session context)      │   │
+│  └─────────────────────────────────────────────────┘   │
+│                          ↓                              │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │  Infrastructure Layer                            │   │
+│  │  • Database (PostgreSQL + PostGIS)              │   │
+│  │  • Cache (Upstash Redis)                        │   │
+│  │  • Storage (Supabase + S3)                      │   │
+│  │  • Queue (Celery/arq)                           │   │
+│  └─────────────────────────────────────────────────┘   │
+│                                                          │
+│  Future Microservices Extraction (when needed):         │
+│  • PDF Processing Service (CPU-intensive)               │
+│  • Tile Generation Service (parallel processing)        │
+│  • Analytics Service (read-heavy)                       │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Justification:**
+- ✅ **Start Simple**: Single deployment, easier debugging
+- ✅ **Faster Development**: Shared code, single codebase
+- ✅ **Lower Ops Overhead**: One service to monitor/scale
+- ✅ **Strong Boundaries**: Clear module separation enables future extraction
+- ✅ **Eventual Migration**: Extract services as needed (e.g., when PDF processing hits CPU limits)
+
+**When to Extract Microservices:**
+1. PDF Processing → When > 1000 PDFs/hour processed
+2. Tile Generation → When > 10TB tiles/month generated
+3. Analytics → When dashboard queries > 10s latency
+
+### 4.2 API Gateway Design
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   API GATEWAY LAYER                      │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │  CloudFlare Workers / AWS API Gateway           │   │
+│  │                                                  │   │
+│  │  Responsibilities:                              │   │
+│  │  1. Geo-routing (EU → eu.api, US → us.api)     │   │
+│  │  2. Rate limiting (per tenant, per IP)          │   │
+│  │  3. JWT validation (verify signature)           │   │
+│  │  4. Request transformation (header injection)   │   │
+│  │  5. DDoS protection (CloudFlare)                │   │
+│  │  6. CORS handling (dynamic origin validation)   │   │
+│  │  7. Request logging (anonymized)                │   │
+│  └─────────────────────────────────────────────────┘   │
+│                          ↓                              │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │  Backend API (FastAPI)                          │   │
+│  │                                                  │   │
+│  │  Middleware Stack:                              │   │
+│  │  1. CORS (already implemented)                  │   │
+│  │  2. Tenant Context (extract from JWT)           │   │
+│  │  3. Authentication (verify token, load user)    │   │
+│  │  4. Authorization (check permissions)           │   │
+│  │  5. Request ID (correlation tracking)           │   │
+│  │  6. Database Session (set RLS context)          │   │
+│  │  7. Exception Handling (structured errors)      │   │
+│  └─────────────────────────────────────────────────┘   │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Implementation:**
+```python
+# API Gateway middleware stack
+from fastapi import FastAPI, Request
+from starlette.middleware.base import BaseHTTPMiddleware
+import logging
+
+app = FastAPI()
+
+# 1. Request ID middleware
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    request_id = str(uuid.uuid4())
+    request.state.request_id = request_id
+
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+# 2. Tenant context middleware
+@app.middleware("http")
+async def tenant_context(request: Request, call_next):
+    # Extract tenant from JWT
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+
+    if token:
+        payload = jwt.decode(token, JWT_SECRET)
+        tenant_id = payload.get("tenant_id")
+        request.state.tenant_id = tenant_id
+
+        # Set PostgreSQL session variable for RLS
+        await database.execute(
+            f"SET app.current_tenant_id = '{tenant_id}'"
+        )
+
+    response = await call_next(request)
+    return response
+
+# 3. Rate limiting middleware
+@app.middleware("http")
+async def rate_limiter(request: Request, call_next):
+    tenant_id = getattr(request.state, "tenant_id", None)
+
+    if tenant_id:
+        # Check tenant-specific rate limit
+        key = f"ratelimit:{tenant_id}:{datetime.now().minute}"
+        count = await redis.incr(key)
+
+        if count > TENANT_RATE_LIMIT:
+            return JSONResponse(
+                status_code=429,
+                content={"error": "Rate limit exceeded"}
+            )
+
+        await redis.expire(key, 60)
+
+    response = await call_next(request)
+    return response
+```
+
+### 4.3 Background Job Processing
+
+**Architecture: Celery with Redis Broker**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              BACKGROUND JOB ARCHITECTURE                 │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │  FastAPI (Producers)                            │   │
+│  │  • Enqueue PDF processing jobs                  │   │
+│  │  • Enqueue tile generation jobs                 │   │
+│  │  • Enqueue export jobs                          │   │
+│  └──────────────────────┬──────────────────────────┘   │
+│                         ↓                               │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │  Redis (Message Broker)                         │   │
+│  │  Queues:                                        │   │
+│  │  • pdf_processing (high priority)               │   │
+│  │  • tile_generation (medium priority)            │   │
+│  │  • exports (low priority)                       │   │
+│  │  • notifications (real-time)                    │   │
+│  └──────────────────────┬──────────────────────────┘   │
+│                         ↓                               │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │  Celery Workers (Consumers)                     │   │
+│  │                                                  │   │
+│  │  Worker Pool 1: PDF Processing                  │   │
+│  │  • 4-8 workers (CPU-intensive)                  │   │
+│  │  • Concurrency: 2 (multiprocessing)             │   │
+│  │  • Memory: 2-4 GB per worker                    │   │
+│  │                                                  │   │
+│  │  Worker Pool 2: Tile Generation                 │   │
+│  │  • 8-16 workers (I/O + CPU)                     │   │
+│  │  • Concurrency: 4 (threading)                   │   │
+│  │  • Memory: 1-2 GB per worker                    │   │
+│  │                                                  │   │
+│  │  Worker Pool 3: Exports & Misc                  │   │
+│  │  • 2-4 workers (I/O-bound)                      │   │
+│  │  • Concurrency: 8 (threading)                   │   │
+│  │  • Memory: 512 MB - 1 GB per worker             │   │
+│  └─────────────────────────────────────────────────┘   │
+│                                                          │
+│  Auto-scaling:                                          │
+│  • Scale workers based on queue depth                   │
+│  • Max workers per pool: 20                             │
+│  • Idle workers shut down after 5 minutes               │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Implementation:**
+```python
+# celery_app.py
+from celery import Celery
+from kombu import Queue
+
+celery_app = Celery(
+    "overlay_app",
+    broker=os.getenv("REDIS_URL"),
+    backend=os.getenv("REDIS_URL")
+)
+
+celery_app.conf.task_routes = {
+    "tasks.process_pdf": {"queue": "pdf_processing"},
+    "tasks.generate_tiles": {"queue": "tile_generation"},
+    "tasks.export_data": {"queue": "exports"},
+}
+
+celery_app.conf.task_queues = (
+    Queue("pdf_processing", priority=10),
+    Queue("tile_generation", priority=5),
+    Queue("exports", priority=1),
+)
+
+# tasks.py
+from celery import Task
+from pdf_processor import PDFProcessor
+
+class TenantTask(Task):
+    """Base task with tenant context"""
+    def __call__(self, *args, **kwargs):
+        tenant_id = kwargs.get("tenant_id")
+        if tenant_id:
+            # Set database context for RLS
+            database.execute(f"SET app.current_tenant_id = '{tenant_id}'")
+        return self.run(*args, **kwargs)
+
+@celery_app.task(base=TenantTask, bind=True)
+def process_pdf(self, file_id: str, tenant_id: str):
+    """Process PDF in background"""
+    try:
+        # Update status
+        update_processing_status(file_id, "processing", 0)
+
+        # Process PDF
+        processor = PDFProcessor()
+        result = processor.process_pdf(file_id)
+
+        # Update progress incrementally
+        for progress in range(0, 100, 10):
+            update_processing_status(file_id, "processing", progress)
+            time.sleep(0.5)
+
+        # Complete
+        update_processing_status(file_id, "completed", 100)
+
+        # Notify via Supabase Realtime
+        supabase.realtime.send_message(
+            channel=f"tenant:{tenant_id}:overlays",
+            event="processing_complete",
+            payload={"file_id": file_id, "result": result}
+        )
+
+        return result
+
+    except Exception as e:
+        update_processing_status(file_id, "failed", 0, str(e))
+        raise
+```
+
+### 4.4 File Processing Pipeline
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              PDF PROCESSING PIPELINE                     │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  Step 1: Upload & Validation                            │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  1. Client uploads PDF via presigned URL        │    │
+│  │  2. Validate file (size, type, virus scan)      │    │
+│  │  3. Calculate hash (deduplication check)        │    │
+│  │  4. Store in Supabase Storage                   │    │
+│  │  5. Create overlay record (status: pending)     │    │
+│  │  6. Enqueue processing job                      │    │
+│  └────────────────────────────────────────────────┘    │
+│                          ↓                              │
+│  Step 2: PDF Analysis (Background Job)                  │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  1. Extract PDF metadata (PyMuPDF)              │    │
+│  │  2. Detect page dimensions                      │    │
+│  │  3. Extract reference points (OCR if needed)    │    │
+│  │  4. Update status → "analyzing" (20% progress)  │    │
+│  └────────────────────────────────────────────────┘    │
+│                          ↓                              │
+│  Step 3: Georeferencing (User Input + Background)       │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  1. User provides 2+ control points             │    │
+│  │  2. Calculate affine transformation matrix      │    │
+│  │  3. Validate transformation accuracy            │    │
+│  │  4. Generate world file                         │    │
+│  │  5. Calculate world bounds                      │    │
+│  │  6. Update status → "georeferenced" (50%)       │    │
+│  └────────────────────────────────────────────────┘    │
+│                          ↓                              │
+│  Step 4: Image Generation (Background Job)              │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  1. Render PDF to high-res PNG (300 DPI)       │    │
+│  │  2. Apply clipping bounds                       │    │
+│  │  3. Georeference image with transformation      │    │
+│  │  4. Optimize image (compression, format)        │    │
+│  │  5. Store in S3/Supabase                        │    │
+│  │  6. Update status → "image_ready" (75%)         │    │
+│  └────────────────────────────────────────────────┘    │
+│                          ↓                              │
+│  Step 5: Tile Generation (Optional, Background)         │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  1. Calculate tile pyramid (zoom 0-18)          │    │
+│  │  2. Generate tiles in parallel                  │    │
+│  │  3. Store tiles in S3 + CloudFront              │    │
+│  │  4. Update manifest                             │    │
+│  │  5. Update status → "completed" (100%)          │    │
+│  └────────────────────────────────────────────────┘    │
+│                          ↓                              │
+│  Step 6: Finalization                                   │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  1. Notify user via Realtime                    │    │
+│  │  2. Invalidate caches                           │    │
+│  │  3. Update analytics                            │    │
+│  │  4. Send webhook (if configured)                │    │
+│  └────────────────────────────────────────────────┘    │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 5. Implementation Phases
+
+### Phase 1: Foundation (Weeks 1-4)
+**Goal: Multi-tenant infrastructure with existing features**
+
+**Tasks:**
+1. ✅ Database schema already defined (RAILWAY_POSTGRES_PDF_OVERLAY_SCHEMA.sql)
+2. 🔧 Implement tenant context middleware
+3. 🔧 Enhance RLS policies with proper session management
+4. 🔧 Migrate pdf_import_api.py to tenant-aware endpoints
+5. 🔧 Setup Upstash Redis for caching
+6. 🔧 Configure Supabase Storage with tenant isolation
+7. 🔧 Implement API gateway with rate limiting
+
+**Deliverables:**
+- Multi-tenant API with working PDF upload/processing
+- Tenant-isolated storage buckets
+- Basic caching layer
+- API documentation
+
+### Phase 2: Processing & Real-time (Weeks 5-8)
+**Goal: Background job processing and real-time updates**
+
+**Tasks:**
+1. 🔧 Setup Celery workers for PDF processing
+2. 🔧 Implement tile generation pipeline
+3. 🔧 Configure Supabase Realtime channels
+4. 🔧 Build WebSocket endpoints for live progress
+5. 🔧 Implement job queue monitoring dashboard
+6. 🔧 Add retry logic and error handling
+
+**Deliverables:**
+- Background job processing system
+- Real-time processing status updates
+- Tile generation at scale
+- Job monitoring tools
+
+### Phase 3: Scalability (Weeks 9-12)
+**Goal: Regional deployment and performance optimization**
+
+**Tasks:**
+1. 🔧 Deploy to multiple regions (EU, US, APAC)
+2. 🔧 Setup database read replicas
+3. 🔧 Configure CDN with CloudFront/CloudFlare
+4. 🔧 Implement smart storage routing (Supabase + S3)
+5. 🔧 Add geo-routing at DNS level
+6. 🔧 Performance testing and optimization
+
+**Deliverables:**
+- Multi-region deployment
+- < 200ms API latency globally
+- 99.9% uptime SLA
+- Load testing results
+
+### Phase 4: Advanced Features (Weeks 13-16)
+**Goal: Enterprise features and analytics**
+
+**Tasks:**
+1. 🔧 Implement usage-based billing integration
+2. 🔧 Build analytics dashboard with Recharts
+3. 🔧 Add audit logging for compliance
+4. 🔧 Implement data export (GeoJSON, KML, Shapefile)
+5. 🔧 Build admin portal for tenant management
+6. 🔧 Add webhook support for integrations
+
+**Deliverables:**
+- Usage tracking and billing
+- Analytics dashboard
+- Audit logs
+- Data export tools
+- Admin portal
+
+---
+
+## 6. Cost Analysis & Optimization
+
+### 6.1 Monthly Cost Estimate (Small SaaS)
+
+**Assumptions:**
+- 100 active tenants
+- 500 PDF overlays/month
+- 50 GB storage
+- 500 GB bandwidth/month
+- 1M API requests/month
+
+| Service | Provider | Configuration | Cost/Month |
+|---------|----------|---------------|------------|
+| **Backend** | Railway | 2x small instances (EU, US) | $20 |
+| **Database** | Railway PostgreSQL | 10 GB storage, 500 MB RAM | $15 |
+| **Redis Cache** | Upstash | 1M requests, 100 MB storage | $5 |
+| **Storage** | Supabase | 50 GB storage, 200 GB bandwidth | $10 |
+| **CDN** | CloudFlare | 500 GB bandwidth | $0 (free tier) |
+| **Monitoring** | Better Stack | Logs + APM | $15 |
+| **Total** | | | **$65/month** |
+
+### 6.2 Monthly Cost Estimate (Enterprise SaaS)
+
+**Assumptions:**
+- 1000 active tenants
+- 10K PDF overlays/month
+- 1 TB storage
+- 10 TB bandwidth/month
+- 50M API requests/month
+
+| Service | Provider | Configuration | Cost/Month |
+|---------|----------|---------------|------------|
+| **Backend** | Railway | 6x medium instances (multi-region) | $180 |
+| **Database** | Railway PostgreSQL | 100 GB storage, 8 GB RAM, replicas | $300 |
+| **Redis Cache** | Upstash | 50M requests, 10 GB storage | $100 |
+| **Storage** | S3 + Supabase | 1 TB storage, 10 TB bandwidth | $250 |
+| **CDN** | CloudFront | 10 TB bandwidth | $850 |
+| **Monitoring** | DataDog | Full stack monitoring | $200 |
+| **Total** | | | **$1,880/month** |
+
+### 6.3 Cost Optimization Strategies
+
+1. **Storage Optimization:**
+   - Implement image compression (reduce 30-50% size)
+   - Delete old tiles after 90 days (keep source images)
+   - Use S3 Intelligent-Tiering (save 20-40% on storage)
+
+2. **Bandwidth Optimization:**
+   - Aggressive CDN caching (95%+ hit rate)
+   - WebP image format (30% smaller than PNG)
+   - Lazy loading for tiles (load only visible tiles)
+
+3. **Compute Optimization:**
+   - Auto-scaling (scale down during off-peak)
+   - Spot instances for background workers (save 60-70%)
+   - Batch processing for tile generation
+
+4. **Database Optimization:**
+   - Materialized views for analytics (reduce query load)
+   - Partial indexes for active tenants only
+   - Archive old data to S3 (glacier tier)
+
+---
+
+## 7. Security Architecture
+
+### 7.1 Authentication & Authorization
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              SECURITY ARCHITECTURE                       │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  Layer 1: API Gateway Security                          │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  • Rate limiting (per IP, per tenant)           │    │
+│  │  • DDoS protection (CloudFlare)                 │    │
+│  │  • IP whitelisting (for enterprise tenants)     │    │
+│  │  • TLS 1.3 enforcement                          │    │
+│  └────────────────────────────────────────────────┘    │
+│                          ↓                              │
+│  Layer 2: Authentication (JWT)                          │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  JWT Structure:                                 │    │
+│  │  {                                              │    │
+│  │    "sub": "user_id",                           │    │
+│  │    "tenant_id": "uuid",                        │    │
+│  │    "role": "admin|user|viewer",                │    │
+│  │    "permissions": ["overlay:read", ...],       │    │
+│  │    "exp": 1234567890                           │    │
+│  │  }                                              │    │
+│  │                                                 │    │
+│  │  Token Refresh: 15-minute access, 7-day refresh│    │
+│  │  Rotation: New refresh token on each use       │    │
+│  └────────────────────────────────────────────────┘    │
+│                          ↓                              │
+│  Layer 3: Authorization (RBAC)                          │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  Roles:                                         │    │
+│  │  • tenant_admin: Full tenant access            │    │
+│  │  • user: Create/edit own overlays              │    │
+│  │  • viewer: Read-only access                    │    │
+│  │  • api_key: Programmatic access                │    │
+│  │                                                 │    │
+│  │  Permissions:                                   │    │
+│  │  • overlay:create, overlay:read, ...           │    │
+│  │  • tenant:manage, user:invite, ...             │    │
+│  └────────────────────────────────────────────────┘    │
+│                          ↓                              │
+│  Layer 4: Data-Level Security (RLS)                     │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  PostgreSQL RLS Policies:                       │    │
+│  │  • All queries filtered by tenant_id            │    │
+│  │  • Additional row-level checks (is_public)      │    │
+│  │  • Audit trail for all data access              │    │
+│  └────────────────────────────────────────────────┘    │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 7.2 Data Encryption
+
+**At Rest:**
+- Database: PostgreSQL TLS encryption + volume encryption (Railway default)
+- Storage: S3 server-side encryption (SSE-S3), Supabase AES-256
+- Backups: Encrypted with separate keys
+
+**In Transit:**
+- API: TLS 1.3 with HSTS headers
+- Database connections: SSL required
+- Internal services: mTLS (mutual TLS)
+
+### 7.3 Compliance
+
+**GDPR (EU):**
+- ✅ Data residency: EU tenants → EU region
+- ✅ Right to deletion: Cascade delete on tenant removal
+- ✅ Data export: JSON/CSV export on request
+- ✅ Consent tracking: User consent table
+
+**SOC 2 (US):**
+- ✅ Access logs: All API calls logged
+- ✅ Encryption: At rest and in transit
+- ✅ MFA: Optional for tenant admins
+- ✅ Audit trail: All data modifications logged
+
+---
+
+## 8. Monitoring & Observability
+
+### 8.1 Metrics & Alerting
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              MONITORING STACK                            │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  Application Metrics (Prometheus + Grafana)             │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  • Request rate (req/s)                         │    │
+│  │  • Latency (p50, p95, p99)                     │    │
+│  │  • Error rate (5xx errors)                      │    │
+│  │  • Queue depth (Celery tasks)                   │    │
+│  │  • Cache hit rate (Redis)                       │    │
+│  │  • Database connections (active/idle)           │    │
+│  └────────────────────────────────────────────────┘    │
+│                                                          │
+│  Infrastructure Metrics (CloudWatch / Railway)          │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  • CPU utilization (target: < 70%)             │    │
+│  │  • Memory usage (target: < 80%)                │    │
+│  │  • Disk I/O (IOPS)                             │    │
+│  │  • Network throughput (MB/s)                   │    │
+│  └────────────────────────────────────────────────┘    │
+│                                                          │
+│  Business Metrics (Custom)                              │
+│  ┌────────────────────────────────────────────────┐    │
+│  │  • PDF uploads per tenant                       │    │
+│  │  • Processing success rate                      │    │
+│  │  • Average processing time                      │    │
+│  │  • Storage usage per tenant                     │    │
+│  │  • API usage per tenant (for billing)          │    │
+│  └────────────────────────────────────────────────┘    │
+│                                                          │
+│  Alerts:                                                │
+│  • Critical: API error rate > 5% (PagerDuty)           │
+│  • Warning: Latency p95 > 1s (Slack)                   │
+│  • Info: Queue depth > 1000 (email)                    │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 8.2 Logging Strategy
+
+**Structured Logging:**
+```python
+import structlog
+
+logger = structlog.get_logger()
+
+# Every log includes:
+logger.info(
+    "pdf_processed",
+    tenant_id=tenant_id,
+    file_id=file_id,
+    duration_ms=duration,
+    request_id=request_id,
+    user_id=user_id
+)
+```
+
+**Log Aggregation:**
+- Better Stack / Logtail (centralized logging)
+- 30-day retention for debugging
+- 1-year retention for compliance (compressed)
+
+**Trace Context:**
+- Request ID propagation through all services
+- Correlation across logs, metrics, traces
+
+---
+
+## 9. Disaster Recovery & Backup
+
+### 9.1 Backup Strategy
+
+**Database:**
+- Automated daily backups (Railway)
+- Point-in-time recovery (7 days)
+- Manual snapshots before major migrations
+- Cross-region backup replication (S3)
+
+**Storage:**
+- S3 versioning enabled (recover deleted files)
+- Lifecycle policy: Archive to Glacier after 90 days
+- Critical data replicated across 3 regions
+
+**Recovery Time Objectives:**
+- RTO (Recovery Time): < 1 hour
+- RPO (Recovery Point): < 5 minutes (for database)
+
+### 9.2 Failover Strategy
+
+**Regional Failover:**
+```
+Primary Region (EU) Failure:
+1. Health checks detect failure (< 30 seconds)
+2. DNS switches to US region (TTL: 60 seconds)
+3. Database promotes read replica to primary
+4. Storage redirects to nearest bucket
+5. Total failover time: < 2 minutes
+```
+
+---
+
+## 10. Summary & Recommendations
+
+### 10.1 Technology Stack (Final)
+
+| Component | Technology | Justification |
+|-----------|-----------|---------------|
+| **Backend** | FastAPI + Python | ✅ Keep existing, proven geospatial support |
+| **Database** | Railway PostgreSQL + PostGIS | ✅ Keep existing, enhance RLS |
+| **Auth** | Supabase Auth + JWT | ✅ Add for managed auth |
+| **Storage** | Hybrid: Supabase (uploads) + S3 (tiles) | ✅ Best of both |
+| **Cache** | Upstash Redis | ✅ Serverless, global |
+| **Real-time** | Supabase Realtime + WebSocket | ✅ Hybrid approach |
+| **Queue** | Celery + Redis | ✅ Proven Python integration |
+| **CDN** | CloudFront + CloudFlare | ✅ Global edge network |
+| **Frontend** | React + Vite + MapLibre GL | ✅ Keep existing |
+
+### 10.2 Architecture Decisions (ADRs)
+
+**ADR-001: Modular Monolith over Microservices**
+- **Decision**: Start with modular monolith, extract services later
+- **Rationale**: Faster development, lower ops overhead, clear boundaries
+- **Consequences**: May need refactoring at scale (> 10K tenants)
+
+**ADR-002: Row-Level Security for Multi-Tenancy**
+- **Decision**: Use PostgreSQL RLS for tenant isolation
+- **Rationale**: Database-enforced security, reduces application bugs
+- **Consequences**: Requires careful session management
+
+**ADR-003: Hybrid Storage Strategy**
+- **Decision**: Supabase for uploads, S3 for tiles
+- **Rationale**: Optimize cost and performance per use case
+- **Consequences**: Complexity in storage routing logic
+
+**ADR-004: Regional Deployment with Geo-Routing**
+- **Decision**: Deploy in EU, US, APAC with DNS routing
+- **Rationale**: < 200ms latency globally, data residency compliance
+- **Consequences**: Higher infrastructure cost, operational complexity
+
+### 10.3 Next Steps
+
+**Immediate (Week 1-2):**
+1. Implement tenant context middleware
+2. Enhance RLS policies with session management
+3. Setup Upstash Redis for caching
+4. Configure Supabase Storage with tenant prefixes
+
+**Short-term (Week 3-8):**
+1. Build Celery job processing pipeline
+2. Implement Supabase Realtime for progress updates
+3. Deploy to EU + US regions
+4. Add monitoring with Better Stack
+
+**Medium-term (Week 9-16):**
+1. Setup database read replicas
+2. Configure CDN with intelligent caching
+3. Build analytics dashboard
+4. Implement usage-based billing
+
+**Long-term (Month 5+):**
+1. Extract microservices (if needed)
+2. Add machine learning for auto-georeferencing
+3. Build mobile SDKs
+4. Expand to additional regions
+
+---
+
+## Appendix A: Database Schema (Enhanced RLS)
+
+```sql
+-- Enhanced RLS policies for production
+
+-- Function to get current tenant from session
+CREATE OR REPLACE FUNCTION current_tenant_id()
+RETURNS UUID AS $$
+BEGIN
+    RETURN NULLIF(current_setting('app.current_tenant_id', true), '')::UUID;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- Tenant isolation policy for image_overlays
+CREATE POLICY tenant_isolation_overlays ON image_overlays
+    FOR ALL
+    USING (
+        geolantis_account_id = current_tenant_id()
+        OR is_public = true  -- Allow public overlays
+    )
+    WITH CHECK (
+        geolantis_account_id = current_tenant_id()
+    );
+
+-- Cascade to tiles
+CREATE POLICY tenant_isolation_tiles ON image_tiles
+    FOR ALL
+    USING (
+        overlay_id IN (
+            SELECT id FROM image_overlays
+            WHERE geolantis_account_id = current_tenant_id()
+        )
+    );
+
+-- Admin bypass (for system operations)
+CREATE POLICY admin_bypass_overlays ON image_overlays
+    FOR ALL
+    TO admin_role
+    USING (true)
+    WITH CHECK (true);
+```
+
+## Appendix B: API Gateway Configuration
+
+```yaml
+# CloudFlare Worker / AWS API Gateway Config
+
+paths:
+  /api/pdf/*:
+    rate_limit:
+      requests_per_minute: 60
+      burst: 10
+    cache:
+      enabled: false  # Dynamic content
+
+  /api/tiles/{z}/{x}/{y}:
+    rate_limit:
+      requests_per_minute: 1000
+      burst: 100
+    cache:
+      enabled: true
+      ttl: 2592000  # 30 days
+      vary: ["Authorization"]  # Per-tenant cache
+
+  /api/overlays/*:
+    rate_limit:
+      requests_per_minute: 120
+      burst: 20
+    cache:
+      enabled: true
+      ttl: 300  # 5 minutes
+      invalidate_on: ["POST", "PUT", "DELETE"]
+
+geo_routing:
+  - region: EU
+    pattern: "*.eu.api.overlayapp.com"
+    backend: "https://eu-backend.railway.app"
+
+  - region: US
+    pattern: "*.us.api.overlayapp.com"
+    backend: "https://us-backend.railway.app"
+
+  - region: APAC
+    pattern: "*.apac.api.overlayapp.com"
+    backend: "https://apac-backend.railway.app"
+
+security:
+  tls_version: "1.3"
+  hsts_max_age: 31536000
+  cors:
+    allowed_origins: ["https://*.overlayapp.com"]
+    allowed_methods: ["GET", "POST", "PUT", "DELETE"]
+    allowed_headers: ["Authorization", "Content-Type"]
+```
+
+---
+
+**Document Version:** 1.0
+**Last Updated:** 2024-10-01
+**Author:** System Architecture Team
+**Status:** Approved for Implementation

@@ -1,0 +1,843 @@
+openapi: 3.0.3
+info:
+  title: OverlayApp Payment System API
+  description: |
+    Comprehensive SaaS payment and subscription management API powered by Stripe and Supabase.
+
+    ## Features
+    - Multiple pricing plans with flexible billing cycles
+    - Stripe Checkout integration
+    - Subscription management (create, update, cancel)
+    - Usage tracking and metering
+    - Invoice management
+    - Webhook event handling
+    - Enterprise custom pricing
+
+    ## Authentication
+    All endpoints (except webhooks and public endpoints) require Bearer token authentication.
+
+    ## Rate Limiting
+    - Authenticated: 100 req/15min
+    - Unauthenticated: 20 req/15min
+    - Enterprise: Custom limits
+
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: api-support@overlayapp.com
+    url: https://docs.overlayapp.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.overlayapp.com
+    description: Production server
+  - url: https://staging-api.overlayapp.com
+    description: Staging server
+  - url: http://localhost:3000
+    description: Local development server
+
+tags:
+  - name: Pricing Plans
+    description: Public pricing plan information
+  - name: Checkout
+    description: Stripe Checkout session management
+  - name: Subscriptions
+    description: Subscription lifecycle management
+  - name: Usage
+    description: Usage tracking and limits
+  - name: Invoices
+    description: Invoice management and history
+  - name: Webhooks
+    description: Stripe webhook event handling
+  - name: Enterprise
+    description: Enterprise-specific features
+
+security:
+  - BearerAuth: []
+
+paths:
+  /api/billing/plans:
+    get:
+      tags:
+        - Pricing Plans
+      summary: Get all pricing plans
+      description: Retrieve list of available pricing plans with features and pricing
+      operationId: getPricingPlans
+      security: []
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PricingPlansResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/billing/checkout:
+    post:
+      tags:
+        - Checkout
+      summary: Create checkout session
+      description: Create a Stripe Checkout session for new subscription
+      operationId: createCheckoutSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCheckoutRequest'
+      responses:
+        '200':
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutSessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/billing/portal:
+    post:
+      tags:
+        - Checkout
+      summary: Create billing portal session
+      description: Create Stripe billing portal session for subscription management
+      operationId: createPortalSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePortalRequest'
+      responses:
+        '200':
+          description: Portal session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortalSessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/billing/subscription:
+    get:
+      tags:
+        - Subscriptions
+      summary: Get current subscription
+      description: Get the authenticated user's active subscription
+      operationId: getSubscription
+      responses:
+        '200':
+          description: Subscription details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/billing/subscription/{id}:
+    put:
+      tags:
+        - Subscriptions
+      summary: Update subscription
+      description: Upgrade, downgrade, or modify subscription
+      operationId: updateSubscription
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSubscriptionRequest'
+      responses:
+        '200':
+          description: Subscription updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Subscriptions
+      summary: Cancel subscription
+      description: Cancel subscription (at period end or immediately)
+      operationId: cancelSubscription
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionIdParam'
+        - name: immediately
+          in: query
+          description: Cancel immediately (true) or at period end (false)
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Subscription canceled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/billing/subscription/{id}/reactivate:
+    post:
+      tags:
+        - Subscriptions
+      summary: Reactivate subscription
+      description: Reactivate a subscription scheduled for cancellation
+      operationId: reactivateSubscription
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionIdParam'
+      responses:
+        '200':
+          description: Subscription reactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/billing/usage:
+    get:
+      tags:
+        - Usage
+      summary: Get current usage
+      description: Get current billing period usage and limits
+      operationId: getCurrentUsage
+      responses:
+        '200':
+          description: Usage details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/billing/invoices:
+    get:
+      tags:
+        - Invoices
+      summary: Get customer invoices
+      description: Get list of invoices for the authenticated user
+      operationId: getInvoices
+      parameters:
+        - name: limit
+          in: query
+          description: Number of invoices to return
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          description: Pagination offset
+          schema:
+            type: integer
+            default: 0
+        - name: status
+          in: query
+          description: Filter by invoice status
+          schema:
+            type: string
+            enum: [draft, open, paid, void, uncollectible]
+      responses:
+        '200':
+          description: Invoice list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoicesResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/billing/webhooks/stripe:
+    post:
+      tags:
+        - Webhooks
+      summary: Stripe webhook handler
+      description: Handle Stripe webhook events
+      operationId: handleStripeWebhook
+      security: []
+      parameters:
+        - name: stripe-signature
+          in: header
+          required: true
+          description: Stripe webhook signature for verification
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StripeWebhookEvent'
+      responses:
+        '200':
+          description: Webhook received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received:
+                    type: boolean
+                    example: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token from Supabase Auth
+
+  parameters:
+    SubscriptionIdParam:
+      name: id
+      in: path
+      required: true
+      description: Subscription UUID
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    PricingPlan:
+      type: object
+      required:
+        - id
+        - name
+        - display_name
+        - monthly_price_cents
+        - annual_price_cents
+        - currency
+        - storage_gb
+        - api_requests_per_month
+        - pdf_overlays_per_month
+        - team_members_limit
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "starter"
+        display_name:
+          type: string
+          example: "Starter"
+        description:
+          type: string
+          example: "Perfect for individuals and small teams"
+        monthly_price_cents:
+          type: integer
+          example: 990
+        annual_price_cents:
+          type: integer
+          example: 9900
+        currency:
+          type: string
+          example: "USD"
+        storage_gb:
+          type: integer
+          example: 10
+        api_requests_per_month:
+          type: integer
+          example: 10000
+        pdf_overlays_per_month:
+          type: integer
+          example: 100
+        team_members_limit:
+          type: integer
+          example: 3
+        features:
+          type: array
+          items:
+            type: string
+          example: ["Basic PDF Overlays", "10GB Storage", "Email Support"]
+        is_active:
+          type: boolean
+          example: true
+        is_visible:
+          type: boolean
+          example: true
+        sort_order:
+          type: integer
+          example: 1
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateCheckoutRequest:
+      type: object
+      required:
+        - pricing_plan_id
+        - billing_cycle
+        - success_url
+        - cancel_url
+      properties:
+        pricing_plan_id:
+          type: string
+          format: uuid
+        billing_cycle:
+          type: string
+          enum: [monthly, annual]
+        success_url:
+          type: string
+          format: uri
+        cancel_url:
+          type: string
+          format: uri
+        discount_code:
+          type: string
+
+    CreatePortalRequest:
+      type: object
+      required:
+        - return_url
+      properties:
+        return_url:
+          type: string
+          format: uri
+
+    UpdateSubscriptionRequest:
+      type: object
+      properties:
+        pricing_plan_id:
+          type: string
+          format: uuid
+        billing_cycle:
+          type: string
+          enum: [monthly, annual]
+        cancel_at_period_end:
+          type: boolean
+
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        customer_id:
+          type: string
+          format: uuid
+        pricing_plan_id:
+          type: string
+          format: uuid
+        stripe_subscription_id:
+          type: string
+        status:
+          type: string
+          enum: [trialing, active, past_due, canceled, unpaid, incomplete]
+        billing_cycle:
+          type: string
+          enum: [monthly, annual]
+        trial_start:
+          type: string
+          format: date-time
+          nullable: true
+        trial_end:
+          type: string
+          format: date-time
+          nullable: true
+        current_period_start:
+          type: string
+          format: date-time
+        current_period_end:
+          type: string
+          format: date-time
+        cancel_at_period_end:
+          type: boolean
+        canceled_at:
+          type: string
+          format: date-time
+          nullable: true
+        amount_cents:
+          type: integer
+        currency:
+          type: string
+        plan:
+          $ref: '#/components/schemas/PricingPlan'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Usage:
+      type: object
+      properties:
+        current:
+          type: object
+          properties:
+            storage_gb:
+              type: number
+              format: float
+            api_requests:
+              type: integer
+            pdf_overlays:
+              type: integer
+        limits:
+          type: object
+          properties:
+            storage_gb:
+              type: integer
+            api_requests_per_month:
+              type: integer
+            pdf_overlays_per_month:
+              type: integer
+        usage_percentages:
+          type: object
+          properties:
+            storage:
+              type: number
+              format: float
+            api_requests:
+              type: number
+              format: float
+            pdf_overlays:
+              type: number
+              format: float
+        period:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time
+
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        customer_id:
+          type: string
+          format: uuid
+        subscription_id:
+          type: string
+          format: uuid
+        stripe_invoice_id:
+          type: string
+        invoice_number:
+          type: string
+        status:
+          type: string
+          enum: [draft, open, paid, void, uncollectible]
+        subtotal_cents:
+          type: integer
+        tax_cents:
+          type: integer
+        discount_cents:
+          type: integer
+        total_cents:
+          type: integer
+        amount_paid_cents:
+          type: integer
+        amount_due_cents:
+          type: integer
+        currency:
+          type: string
+        invoice_date:
+          type: string
+          format: date
+        due_date:
+          type: string
+          format: date
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+        period_start:
+          type: string
+          format: date-time
+        period_end:
+          type: string
+          format: date-time
+        invoice_pdf_url:
+          type: string
+          format: uri
+        hosted_invoice_url:
+          type: string
+          format: uri
+        created_at:
+          type: string
+          format: date-time
+
+    StripeWebhookEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          example: "event"
+        type:
+          type: string
+          example: "customer.subscription.created"
+        data:
+          type: object
+
+    PricingPlansResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PricingPlan'
+
+    CheckoutSessionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            sessionId:
+              type: string
+            url:
+              type: string
+              format: uri
+
+    PortalSessionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            url:
+              type: string
+              format: uri
+
+    SubscriptionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/Subscription'
+
+    UsageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/Usage'
+
+    InvoicesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invoice'
+        pagination:
+          type: object
+          properties:
+            total:
+              type: integer
+            limit:
+              type: integer
+            offset:
+              type: integer
+            has_more:
+              type: boolean
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+        request_id:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: "INVALID_REQUEST"
+              message: "The request is invalid or malformed"
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: "AUTHENTICATION_REQUIRED"
+              message: "Authentication required"
+
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: "INSUFFICIENT_PERMISSIONS"
+              message: "You don't have permission to access this resource"
+
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: "RESOURCE_NOT_FOUND"
+              message: "The requested resource was not found"
+
+    InternalServerError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: "INTERNAL_ERROR"
+              message: "An internal server error occurred"
+
+  examples:
+    StarterPlan:
+      value:
+        id: "123e4567-e89b-12d3-a456-426614174000"
+        name: "starter"
+        display_name: "Starter"
+        description: "Perfect for individuals and small teams"
+        monthly_price_cents: 990
+        annual_price_cents: 9900
+        currency: "USD"
+        storage_gb: 10
+        api_requests_per_month: 10000
+        pdf_overlays_per_month: 100
+        team_members_limit: 3
+        features:
+          - "Basic PDF Overlays"
+          - "10GB Storage"
+          - "10K API Requests/month"
+          - "Email Support"
+        is_active: true
+        is_visible: true
+
+    ActiveSubscription:
+      value:
+        id: "sub_123e4567"
+        status: "active"
+        billing_cycle: "monthly"
+        current_period_start: "2025-01-01T00:00:00Z"
+        current_period_end: "2025-02-01T00:00:00Z"
+        amount_cents: 990
+        currency: "USD"
+        plan:
+          name: "starter"
+          display_name: "Starter"

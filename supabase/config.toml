@@ -1,0 +1,94 @@
+# Supabase Project Configuration
+project_id = "fjjoguapljqrngqvtdvj"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[db.pooler]
+enabled = true
+port = 54329
+pool_mode = "transaction"
+default_pool_size = 20
+max_client_conn = 100
+
+[realtime]
+enabled = true
+ip_version = "IPv4"
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1"
+
+[inbucket]
+enabled = true
+port = 54324
+smtp_port = 54325
+pop3_port = 54326
+
+[storage]
+enabled = true
+file_size_limit = "100MB"
+
+[auth]
+enabled = true
+# PRODUCTION: Update this to your actual production URL (e.g., https://overlayapp.vercel.app)
+site_url = "https://overlayapp-payment-plp9autsi-geolantis-projects.vercel.app"
+# PRODUCTION: Add all your deployment URLs (Vercel preview URLs, custom domains)
+additional_redirect_urls = [
+  "https://overlayapp-payment-plp9autsi-geolantis-projects.vercel.app",
+  "https://overlayapp-payment-*.vercel.app",
+  "https://*.overlayapp.vercel.app",
+  "http://localhost:3000"
+]
+jwt_expiry = 3600
+enable_signup = true
+enable_anonymous_sign_ins = false
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+secure_password_change = true
+max_frequency = "1h"
+
+# Google OAuth - Add your credentials from Google Cloud Console
+# https://console.cloud.google.com/apis/credentials
+[auth.external.google]
+enabled = true
+client_id = "env(GOOGLE_CLIENT_ID)"
+secret = "env(GOOGLE_CLIENT_SECRET)"
+redirect_uri = "https://fjjoguapljqrngqvtdvj.supabase.co/auth/v1/callback"
+
+# Apple Sign In - Add your credentials from Apple Developer
+# https://developer.apple.com/account/resources/identifiers/list/serviceId
+[auth.external.apple]
+enabled = true
+client_id = "env(APPLE_CLIENT_ID)"
+secret = "env(APPLE_CLIENT_SECRET)"
+redirect_uri = "https://fjjoguapljqrngqvtdvj.supabase.co/auth/v1/callback"
+
+# Phone/SMS Authentication - Requires SMS provider (Twilio, MessageBird, etc.)
+# Configure in Supabase Dashboard: Authentication > Providers > Phone
+[auth.sms]
+enable_signup = true
+enable_confirmations = true
+max_frequency = "5m"
+# provider = "twilio"  # Configure in dashboard
+# test_otp = "123456"  # For development only
+
+[edge_runtime]
+enabled = true
+policy = "per_worker"
+
+[analytics]
+enabled = false

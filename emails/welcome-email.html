@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Welcome to OverlayApp</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6; line-height: 1.6;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f3f4f6; padding: 40px 0;">
+        <tr>
+            <td align="center">
+                <!-- Main Container -->
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+                    <!-- Header with Logo -->
+                    <tr>
+                        <td style="padding: 40px 40px 20px; text-align: center; background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); border-radius: 8px 8px 0 0;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700;">{{APP_NAME}}</h1>
+                            <p style="margin: 10px 0 0; color: #e0e7ff; font-size: 16px;">Welcome aboard! 🎉</p>
+                        </td>
+                    </tr>
+
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px;">
+                            <h2 style="margin: 0 0 20px; color: #111827; font-size: 24px; font-weight: 600;">Welcome to {{APP_NAME}}!</h2>
+
+                            <p style="margin: 0 0 20px; color: #4b5563; font-size: 16px;">
+                                Hi {{USER_NAME}},
+                            </p>
+
+                            <p style="margin: 0 0 20px; color: #4b5563; font-size: 16px;">
+                                We're thrilled to have you join us! Your account has been successfully created and you're all set to get started.
+                            </p>
+
+                            <!-- Quick Start Guide -->
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 30px 0;">
+                                <tr>
+                                    <td style="padding: 0 0 20px;">
+                                        <h3 style="margin: 0 0 20px; color: #111827; font-size: 18px; font-weight: 600;">
+                                            🚀 Quick Start Guide
+                                        </h3>
+                                    </td>
+                                </tr>
+                                <!-- Step 1 -->
+                                <tr>
+                                    <td style="padding: 16px; background-color: #f9fafb; border-left: 3px solid #2563eb; margin-bottom: 12px;">
+                                        <p style="margin: 0 0 8px; color: #111827; font-size: 15px; font-weight: 600;">
+                                            1. Complete Your Profile
+                                        </p>
+                                        <p style="margin: 0; color: #4b5563; font-size: 14px;">
+                                            Add your information and preferences to personalize your experience.
+                                        </p>
+                                    </td>
+                                </tr>
+                                <tr><td style="height: 12px;"></td></tr>
+                                <!-- Step 2 -->
+                                <tr>
+                                    <td style="padding: 16px; background-color: #f9fafb; border-left: 3px solid #2563eb; margin-bottom: 12px;">
+                                        <p style="margin: 0 0 8px; color: #111827; font-size: 15px; font-weight: 600;">
+                                            2. Explore Features
+                                        </p>
+                                        <p style="margin: 0; color: #4b5563; font-size: 14px;">
+                                            Discover powerful tools and features designed to help you succeed.
+                                        </p>
+                                    </td>
+                                </tr>
+                                <tr><td style="height: 12px;"></td></tr>
+                                <!-- Step 3 -->
+                                <tr>
+                                    <td style="padding: 16px; background-color: #f9fafb; border-left: 3px solid #2563eb;">
+                                        <p style="margin: 0 0 8px; color: #111827; font-size: 15px; font-weight: 600;">
+                                            3. Invite Your Team
+                                        </p>
+                                        <p style="margin: 0; color: #4b5563; font-size: 14px;">
+                                            Collaborate with colleagues by inviting them to join your workspace.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- CTA Button -->
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 30px 0;">
+                                <tr>
+                                    <td align="center">
+                                        <a href="{{APP_URL}}/dashboard"
+                                           style="display: inline-block; padding: 14px 32px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);"
+                                           target="_blank"
+                                           role="button">
+                                            Go to Dashboard
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Help Section -->
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 30px 0; background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px;">
+                                <tr>
+                                    <td style="padding: 20px;">
+                                        <p style="margin: 0 0 10px; color: #1e40af; font-size: 14px; font-weight: 600;">
+                                            💡 Need Help Getting Started?
+                                        </p>
+                                        <p style="margin: 0; color: #1e40af; font-size: 13px;">
+                                            Check out our <a href="{{APP_URL}}/docs" style="color: #2563eb; text-decoration: underline;">documentation</a> or
+                                            <a href="{{APP_URL}}/support" style="color: #2563eb; text-decoration: underline;">contact our support team</a>.
+                                            We're here to help!
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin: 0; color: #4b5563; font-size: 16px;">
+                                Thanks for choosing {{APP_NAME}}. We can't wait to see what you'll accomplish!
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 30px 40px; background-color: #f9fafb; border-top: 1px solid #e5e7eb; border-radius: 0 0 8px 8px;">
+                            <p style="margin: 0 0 10px; color: #6b7280; font-size: 12px; text-align: center;">
+                                © {{YEAR}} {{APP_NAME}}. All rights reserved.
+                            </p>
+                            <p style="margin: 0; color: #9ca3af; font-size: 12px; text-align: center;">
+                                <a href="{{APP_URL}}/unsubscribe?token={{UNSUBSCRIBE_TOKEN}}" style="color: #6b7280; text-decoration: underline;">Unsubscribe</a> |
+                                <a href="{{APP_URL}}/email-preferences" style="color: #6b7280; text-decoration: underline;">Email Preferences</a> |
+                                <a href="{{APP_URL}}/privacy" style="color: #6b7280; text-decoration: underline;">Privacy Policy</a>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

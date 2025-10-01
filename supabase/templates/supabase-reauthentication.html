@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Confirm Reauthentication - OverlayApp</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f8fafc;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 48px 40px; text-align: center;">
+              <h1 style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0; letter-spacing: -0.5px;">OverlayApp</h1>
+              <p style="color: rgba(255, 255, 255, 0.9); font-size: 16px; margin: 12px 0 0 0;">Professional PDF Overlay Management</p>
+            </td>
+          </tr>
+
+          <!-- Content -->
+          <tr>
+            <td style="padding: 48px 40px;">
+              <h2 style="color: #1e293b; font-size: 26px; margin: 0 0 16px 0; font-weight: 700;">Confirm reauthentication</h2>
+
+              <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+                We received a request to reauthenticate your account for a sensitive operation. Please enter the code below to confirm your identity and continue.
+              </p>
+
+              <!-- Security Code Box -->
+              <div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-left: 4px solid #2563eb; padding: 24px 28px; margin: 32px 0; border-radius: 8px;">
+                <p style="color: #1e293b; font-size: 14px; margin: 0 0 16px 0; font-weight: 600;">
+                  🔐 Your reauthentication code:
+                </p>
+                <p style="font-family: 'Courier New', Consolas, monospace; font-size: 40px; font-weight: 700; letter-spacing: 8px; color: #2563eb; margin: 0; text-align: center;">{{ .Token }}</p>
+              </div>
+
+              <!-- What This Means -->
+              <div style="background-color: #f8fafc; padding: 20px 24px; margin: 32px 0; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <p style="color: #1e293b; font-size: 14px; margin: 0 0 12px 0; font-weight: 600;">
+                  💡 What is reauthentication?
+                </p>
+                <p style="color: #64748b; font-size: 14px; margin: 0; line-height: 1.8;">
+                  For sensitive operations like changing your password, updating security settings, or deleting your account, we require you to confirm your identity. This extra step helps protect your account from unauthorized access.
+                </p>
+              </div>
+
+              <!-- Security Notice -->
+              <div style="margin: 32px 0; padding: 20px 24px; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-left: 4px solid #f59e0b; border-radius: 8px;">
+                <p style="color: #92400e; font-size: 14px; margin: 0 0 8px 0; font-weight: 600;">
+                  ⏰ Time-Sensitive Code
+                </p>
+                <p style="color: #92400e; font-size: 14px; margin: 0; line-height: 1.6;">
+                  This code expires in <strong>5 minutes</strong> for your security. If you didn't request this reauthentication, please ignore this email and consider changing your password.
+                </p>
+              </div>
+
+              <!-- Warning Notice -->
+              <div style="margin: 32px 0; padding: 20px 24px; background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); border-left: 4px solid #dc2626; border-radius: 8px;">
+                <p style="color: #7f1d1d; font-size: 14px; margin: 0 0 8px 0; font-weight: 600;">
+                  ⚠️ Important Security Warning
+                </p>
+                <p style="color: #7f1d1d; font-size: 14px; margin: 0; line-height: 1.6;">
+                  <strong>Never share this code with anyone!</strong> OverlayApp staff will never ask for this code. If you didn't request this reauthentication:
+                </p>
+                <ul style="color: #7f1d1d; font-size: 14px; margin: 12px 0 0 0; padding-left: 20px; line-height: 1.8;">
+                  <li>Ignore this email immediately</li>
+                  <li>Change your password right away</li>
+                  <li>Enable two-factor authentication</li>
+                  <li>Contact our support team if you need help</li>
+                </ul>
+              </div>
+
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 32px 0;">
+
+              <p style="color: #94a3b8; font-size: 13px; line-height: 1.6; margin: 0;">
+                If you're having trouble with this code, please contact our support team at <a href="mailto:support@overlayapp.com" style="color: #2563eb; text-decoration: none;">support@overlayapp.com</a>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f8fafc; padding: 32px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
+              <p style="color: #64748b; font-size: 14px; margin: 0 0 12px 0;">
+                <strong>OverlayApp</strong> - Georeference your PDFs with precision
+              </p>
+              <p style="color: #94a3b8; font-size: 13px; margin: 0 0 16px 0;">
+                &copy; 2025 OverlayApp. All rights reserved.
+              </p>
+              <p style="color: #94a3b8; font-size: 13px; margin: 0;">
+                <a href="{{ .SiteURL }}" style="color: #2563eb; text-decoration: none; margin: 0 12px;">Home</a>
+                <a href="{{ .SiteURL }}/support" style="color: #2563eb; text-decoration: none; margin: 0 12px;">Support</a>
+                <a href="{{ .SiteURL }}/security" style="color: #2563eb; text-decoration: none; margin: 0 12px;">Security</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

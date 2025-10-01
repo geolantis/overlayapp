@@ -77,19 +77,27 @@ export default function SignupPage() {
 
   if (success) {
     return (
-      <Card className="w-full max-w-md border-slate-200 shadow-lg">
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold text-slate-900">Check your email</CardTitle>
-          <CardDescription className="text-slate-700">
-            We sent you a confirmation link. Please check your email to verify your account.
-          </CardDescription>
-        </CardHeader>
-        <CardFooter>
-          <Link href="/login" className="w-full">
-            <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">Back to login</Button>
-          </Link>
-        </CardFooter>
-      </Card>
+      <div className="w-full">
+        <Card className="w-full border-slate-200 shadow-xl bg-white">
+          <CardHeader className="space-y-2 pb-6">
+            <CardTitle className="text-3xl font-bold text-slate-900 text-center">Check your email</CardTitle>
+            <CardDescription className="text-slate-700 text-center text-base">
+              We sent you a confirmation link. Please check your email to verify your account.
+            </CardDescription>
+          </CardHeader>
+          <CardFooter className="flex flex-col space-y-4 px-8 pb-8">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+              <p className="text-sm text-slate-700 mb-2">
+                📧 Confirmation email sent to:
+              </p>
+              <p className="text-base font-semibold text-slate-900">{email}</p>
+            </div>
+            <Link href="/login" className="w-full">
+              <Button className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-semibold">Back to login</Button>
+            </Link>
+          </CardFooter>
+        </Card>
+      </div>
     );
   }
 
